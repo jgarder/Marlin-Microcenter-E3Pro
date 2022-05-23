@@ -96,7 +96,7 @@
 
 // Choose the name from boards.h that matches your setup
 #ifndef MOTHERBOARD
-  #define MOTHERBOARD BOARD_CREALITY_V4
+  #define MOTHERBOARD BOARD_CREALITY_V4 // compiled with Environment "STM32F103RE_Creality" for Microcenter 2022 4.2.2 (not silent board) (if this doesnt work try RC version.)
 #endif
 
 /**
