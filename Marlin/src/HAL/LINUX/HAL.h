@@ -1,9 +1,9 @@
 /**
  * Marlin 3D Printer Firmware
- *
  * Copyright (c) 2020 MarlinFirmware [https://github.com/MarlinFirmware/Marlin]
- * Copyright (c) 2016 Bob Cousins bobcousins42@googlemail.com
- * Copyright (c) 2015-2016 Nico Tonnhofer wurstnase.reprap@gmail.com
+ *
+ * Based on Sprinter and grbl.
+ * Copyright (c) 2011 Camiel Gubbels / Erik van der Zalm
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,20 +21,25 @@
  */
 #pragma once
 
+#include "../../inc/MarlinConfigPre.h"
+
 #include <iostream>
 #include <stdint.h>
 #include <stdarg.h>
+
+#ifdef HAS_LIBBSD
+  #include <bsd/string.h>
+#endif
+
 #undef min
 #undef max
 #include <algorithm>
 
 #include "hardware/Clock.h"
-
 #include "../shared/Marduino.h"
 #include "../shared/math_32bit.h"
 #include "../shared/HAL_SPI.h"
 #include "fastio.h"
-#include "watchdog.h"
 #include "serial.h"
 
 // ------------------------
@@ -80,8 +85,8 @@ extern MSerialT usb_serial;
 #define CRITICAL_SECTION_END()
 
 // ADC
-#define HAL_ADC_VREF           5.0
-#define HAL_ADC_RESOLUTION    10
+#define HAL_ADC_VREF_MV   5000
+#define HAL_ADC_RESOLUTION  10
 
 // ------------------------
 // Class Utilities
@@ -106,16 +111,20 @@ public:
   // Earliest possible init, before setup()
   MarlinHAL() {}
 
+  // Watchdog
+  static void watchdog_init() {}
+  static void watchdog_refresh() {}
+
   static void init() {}        // Called early in setup()
   static void init_board() {}  // Called less early in setup()
-  static void reboot();               // Reset the application state and GPIO
+  static void reboot();        // Reset the application state and GPIO
 
   // Interrupts
   static bool isr_state() { return true; }
   static void isr_on()  {}
   static void isr_off() {}
 
-  static void delay_ms(const int ms) { _delay_ms(ms); }
+  static void delay_ms(const int ms) { delay(ms); }
 
   // Tasks, called from idle()
   static void idletask() {}
@@ -158,4 +167,13 @@ public:
   }
 
   static void set_pwm_frequency(const pin_t, int) {}
+
+  #ifndef HAS_LIBBSD
+    /**
+     * Redirect missing strlcpy here
+     */
+    static size_t _strlcpy(char *dst, const char *src, size_t dsize);
+    #define strlcpy hal._strlcpy
+  #endif
+
 };

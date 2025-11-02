@@ -37,31 +37,22 @@
 
 #define _IMPLEMENT_SERIAL(X) DefaultSerial##X MSerial##X(false, Serial##X)
 #define IMPLEMENT_SERIAL(X)  _IMPLEMENT_SERIAL(X)
-#if WITHIN(SERIAL_PORT, 0, 3)
+#if WITHIN(SERIAL_PORT, SERIAL_INDEX_MIN, SERIAL_INDEX_MAX)
   IMPLEMENT_SERIAL(SERIAL_PORT);
-#else
-  #error "SERIAL_PORT must be from 0 to 3."
+#endif
+#if defined(SERIAL_PORT_2) && WITHIN(SERIAL_PORT_2, SERIAL_INDEX_MIN, SERIAL_INDEX_MAX)
+  IMPLEMENT_SERIAL(SERIAL_PORT_2);
+#endif
+#if defined(SERIAL_PORT_3) && WITHIN(SERIAL_PORT_3, SERIAL_INDEX_MIN, SERIAL_INDEX_MAX)
+  IMPLEMENT_SERIAL(SERIAL_PORT_3);
+#endif
+#if defined(MMU_SERIAL_PORT) && WITHIN(MMU_SERIAL_PORT, SERIAL_INDEX_MIN, SERIAL_INDEX_MAX)
+  IMPLEMENT_SERIAL(MMU_SERIAL_PORT);
+#endif
+#if defined(LCD_SERIAL_PORT) && WITHIN(LCD_SERIAL_PORT, SERIAL_INDEX_MIN, SERIAL_INDEX_MAX)
+  IMPLEMENT_SERIAL(LCD_SERIAL_PORT);
 #endif
 USBSerialType USBSerial(false, SerialUSB);
-
-// ------------------------
-// Class Utilities
-// ------------------------
-
-extern "C" {
-  extern char __bss_end;
-  extern char __heap_start;
-  extern void* __brkval;
-
-  int freeMemory() {
-    int free_memory;
-    if ((int)__brkval == 0)
-      free_memory = ((int)&free_memory) - ((int)&__bss_end);
-    else
-      free_memory = ((int)&free_memory) - ((int)__brkval);
-    return free_memory;
-  }
-}
 
 // ------------------------
 // MarlinHAL Class
@@ -81,7 +72,31 @@ uint8_t MarlinHAL::get_reset_source() {
   return 0;
 }
 
+// ------------------------
+// Watchdog Timer
+// ------------------------
+
+#if ENABLED(USE_WATCHDOG)
+
+  #define WDT_TIMEOUT_MS TERN(WATCHDOG_DURATION_8S, 8000, 4000) // 4 or 8 second timeout
+
+  void MarlinHAL::watchdog_init() {
+    WDOG_TOVALH = 0;
+    WDOG_TOVALL = WDT_TIMEOUT_MS;
+    WDOG_STCTRLH = WDOG_STCTRLH_WDOGEN;
+  }
+
+  void MarlinHAL::watchdog_refresh() {
+    // Watchdog refresh sequence
+    WDOG_REFRESH = 0xA602;
+    WDOG_REFRESH = 0xB480;
+  }
+
+#endif
+
+// ------------------------
 // ADC
+// ------------------------
 
 void MarlinHAL::adc_init() {
   analog_init();
@@ -101,5 +116,24 @@ void MarlinHAL::adc_start(const pin_t pin) {
 }
 
 uint16_t MarlinHAL::adc_value() { return ADC0_RA; }
+
+// ------------------------
+// Free Memory Accessor
+// ------------------------
+
+extern "C" {
+  extern char __bss_end;
+  extern char __heap_start;
+  extern void* __brkval;
+
+  int freeMemory() {
+    int free_memory;
+    if ((int)__brkval == 0)
+      free_memory = ((int)&free_memory) - ((int)&__bss_end);
+    else
+      free_memory = ((int)&free_memory) - ((int)__brkval);
+    return free_memory;
+  }
+}
 
 #endif // __MK20DX256__

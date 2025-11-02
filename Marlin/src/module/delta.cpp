@@ -49,7 +49,7 @@
 #define DEBUG_OUT ENABLED(DEBUG_LEVELING_FEATURE)
 #include "../core/debug_out.h"
 
-// Initialized by settings.load()
+// Initialized by settings.load
 float delta_height;
 abc_float_t delta_endstop_adj{0};
 float delta_radius,
@@ -101,7 +101,7 @@ void recalc_delta_settings() {
  *
  * Suggested optimizations include:
  *
- * - Disable the home_offset (M206) and/or position_shift (G92)
+ * - Disable the home_offset (M206) and/or workspace_offset (G92)
  *   features to remove up to 12 float additions.
  */
 
@@ -132,7 +132,7 @@ float delta_safe_distance_from_top() {
   xyz_pos_t cartesian{0};
   inverse_kinematics(cartesian);
   const float centered_extent = delta.a;
-  cartesian.y = DELTA_PRINTABLE_RADIUS;
+  cartesian.y = PRINTABLE_RADIUS;
   inverse_kinematics(cartesian);
   return ABS(centered_extent - delta.a);
 }
@@ -236,13 +236,22 @@ void home_delta() {
     TERN_(U_SENSORLESS, sensorless_t stealth_states_u = start_sensorless_homing_per_axis(U_AXIS));
     TERN_(V_SENSORLESS, sensorless_t stealth_states_v = start_sensorless_homing_per_axis(V_AXIS));
     TERN_(W_SENSORLESS, sensorless_t stealth_states_w = start_sensorless_homing_per_axis(W_AXIS));
+    #if SENSORLESS_STALLGUARD_DELAY
+      safe_delay(SENSORLESS_STALLGUARD_DELAY); // Short delay needed to settle
+    #endif
   #endif
+
+  // Set homing current for all motors
+  TERN_(HAS_HOMING_CURRENT, set_homing_current(Z_AXIS));
 
   // Move all carriages together linearly until an endstop is hit.
   current_position.z = DIFF_TERN(HAS_BED_PROBE, delta_height + 10, probe.offset.z);
   line_to_current_position(homing_feedrate(Z_AXIS));
   planner.synchronize();
   TERN_(HAS_DELTA_SENSORLESS_PROBING, endstops.report_states());
+
+  // Restore the homing current for all motors
+  TERN_(HAS_HOMING_CURRENT, restore_homing_current(Z_AXIS));
 
   // Re-enable stealthChop if used. Disable diag1 pin on driver.
   #if ENABLED(SENSORLESS_HOMING) && DISABLED(ENDSTOPS_ALWAYS_ON_DEFAULT)
@@ -255,6 +264,9 @@ void home_delta() {
     TERN_(U_SENSORLESS, end_sensorless_homing_per_axis(U_AXIS, stealth_states_u));
     TERN_(V_SENSORLESS, end_sensorless_homing_per_axis(V_AXIS, stealth_states_v));
     TERN_(W_SENSORLESS, end_sensorless_homing_per_axis(W_AXIS, stealth_states_w));
+    #if SENSORLESS_STALLGUARD_DELAY
+      safe_delay(SENSORLESS_STALLGUARD_DELAY); // Short delay needed to settle
+    #endif
   #endif
 
   endstops.validate_homing_move();
